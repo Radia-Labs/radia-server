@@ -1,5 +1,5 @@
-import Web3 from "web3";
-import solanaWeb3 from "@solana/web3.js";
+// import Web3 from "web3";
+// import solanaWeb3 from "@solana/web3.js";
 import pkg from "@toruslabs/openlogin-ed25519";
 import Moralis from "moralis/node.js";
 import express from "express";
@@ -11,6 +11,12 @@ import {
   getNFTsFromSimpleHash,
   getSpotifyAuthTokens,
   refreshSpotifyAccessToken,
+  getSpotifyRecentPlayed,
+  mintNFTToAddress,
+  getUser,
+  createUser,
+  getIntegration,
+  createIntegration
 } from "./utils.js";
 // import bs58 from 'bs58';
 const { getED25519Key } = pkg;
@@ -19,113 +25,17 @@ const port = 3000;
 app.use(bodyParser.json());
 
 dotenv.config();
-await Moralis.start({
-  serverUrl: process.env.MORALIS_URL,
-  appId: process.env.MORALIS_APP_ID,
-  masterKey: process.env.MORALIS_MASTER_KEY,
-  moralisSecret: process.env.MORALIS_SECRET,
-});
-// const connection = new solanaWeb3.Connection(process.env.SOLANA_RPC_URL, 'confirmed');
-
-app.get("/integration/spotify/auth", async (req, res) => {
-  const code = req.query.code;
-  getSpotifyAuthTokens(code)
-    .then(async (json) => res.json(json))
-    .catch((err) => console.log("Error getting spotify Refresh Token: ", err));
-});
-
-app.get("/integration/spotify/refresh-token", async (req, res) => {
-  const refreshToken = req.query.refreshToken;
-  refreshSpotifyAccessToken(refreshToken)
-    .then((token) => res.json(token))
-    .catch((err) => console.log("Error getting spotify Access Token: ", err));
-});
-
-app.get("/account/import/eth", async (req, res) => {
-  const privateKey = req.query.privateKey.toString();
-  const web3 = new Web3(
-    new Web3.providers.HttpProvider(process.env.INFURA_URL)
-  );
-  const keypair = web3.eth.accounts.privateKeyToAccount(privateKey);
-  res.json({ address: keypair.address });
-});
-
-app.get("/account/import/polygon", async (req, res) => {
-  const privateKey = req.query.privateKey.toString();
-  const web3 = new Web3(
-    new Web3.providers.HttpProvider(process.env.INFURA_URL)
-  );
-  const keypair = web3.eth.accounts.privateKeyToAccount(privateKey);
-  res.json({ address: keypair.address });
-});
-
-app.get("/account/import/sol", async (req, res) => {
-  // privateKey can be from openlogin or from the user's existing wallet.
-  // TODO: we could use the length to determine if it's openlogin or for example phanton wallet private key?
-  // TODO: use fromSeed() to create a keypair from phantom private key for example.
-  const privateKey = req.query.privateKey.toString();
-  const { sk } = getED25519Key(privateKey);
-  let keypair = solanaWeb3.Keypair.fromSecretKey(sk);
-  res.json({ address: keypair.publicKey.toBase58() });
-});
-
-app.post("/account/send/polygon", async (req, res) => {
-  const toAddress = req.body.toAddress;
-  const amount = req.body.amount;
-  const privateKey = req.body.privateKey;
-  await Moralis.enableWeb3({ privateKey: privateKey, chainId: "0x13881" }); // TOD0: mumbai chainId: "0x13881" mainnet chainId: "0x89"
-  const options = {
-    type: "native",
-    amount: Moralis.Units.ETH(amount),
-    receiver: toAddress,
-  };
-  try {
-    let transaction = await Moralis.transfer(options);
-    console.log(transaction);
-    const result = await transaction.wait();
-    console.log(result);
-  } catch (error) {
-    console.log(error);
-  }
-  res.json({});
-});
-
-app.post("/account/send/eth", async (req, res) => {
-  const toAddress = req.body.toAddress;
-  const amount = req.body.amount;
-  const privateKey = req.body.privateKey;
-
-  await Moralis.enableWeb3({ privateKey: privateKey, chainId: "0x5" }); // "mainnet chaib in 0x1, goerli is 0x5"
-  const options = {
-    type: "native",
-    amount: Moralis.Units.ETH(amount),
-    receiver: toAddress,
-  };
-  try {
-    let transaction = await Moralis.transfer(options);
-    console.log(transaction);
-    const result = await transaction.wait();
-    console.log(result);
-  } catch (error) {
-    console.log(error);
-  }
-  res.json({});
-});
-
-app.get("/account/transactions/eth", async (req, res) => {
-  const transactionHash = req.query.transactionHash;
-  const options = {
-    chain: "eth",
-    transaction_hash: transactionHash,
-  };
-  const transaction = await Moralis.Web3API.native.getTransaction(options);
-  console.log(transaction);
-  res.json({});
-});
-
-// seach for eth token contract
-// Use a web service
-// https://api.etherscan.io/api?module=token&action=tokeninfo&contractaddress=0x0e3a2a1f2146d86a604adc220b4967a898d7fe07&apikey=YourApiKeyToken
+try {
+  await Moralis.start({
+    serverUrl: process.env.MORALIS_URL,
+    appId: process.env.MORALIS_APP_ID,
+    masterKey: process.env.MORALIS_MASTER_KEY,
+    moralisSecret: process.env.MORALIS_SECRET,
+  });
+  // const connection = new solanaWeb3.Connection(process.env.SOLANA_RPC_URL, 'confirmed');
+} catch (error) {
+  console.log("Error strting Moralis. Confirm dApp is awake.")
+}
 
 app.get("/account/balances/eth", async (req, res) => {
   const options = { chain: "goerli", address: req.query.address }; // TODO: support maininet chain
@@ -204,6 +114,83 @@ app.get("/account/nfts", async (req, res) => {
   res.json(nfts);
 });
 
+/**
+ * ThirdWeb integration endpoints. 
+ * These endpoints are used to integrate with the ThirdWeb SDK
+ */
+app.post("/integration/thirdweb/nft/mint", async (req, res) => {
+  const walletAddress = req.body.walletAddress;
+  const tokenId = req.body.tokenId;
+  const result = await mintNFTToAddress(walletAddress, tokenId);
+  res.json(result);
+});
+
+
+/**
+ * Spotify integration endpoints. /integration/spotify/auth flow to get access token.
+ * Subsequent data endpoints require a Spotify access token.
+ *
+ * For more information, read https://developer.spotify.com/web-api
+ */
+app.get("/integration/spotify/auth", async (req, res) => {
+  const code = req.query.code;
+  getSpotifyAuthTokens(code)
+    .then(async (json) => res.json(json))
+    .catch((err) => console.log("Error getting spotify Refresh Token: ", err));
+});
+
+app.get("/integration/spotify/refresh-token", async (req, res) => {
+  const refreshToken = req.query.refreshToken;
+  refreshSpotifyAccessToken(refreshToken)
+    .then((token) => res.json(token))
+    .catch((err) => console.log("Error refreshing token:", err));
+});
+
+app.get("/integration/spotify/recent-played", (req, res) => {
+  getSpotifyRecentPlayed(req.query)
+    .then((tracks) => res.json(tracks))
+    .catch((err) => console.log("Error getting spotify recent tracks: ", err));
+})
+
 app.listen(port, () => {
   console.log(`Example app listening on port ${port}`);
+});
+
+/**
+ * User endpoints
+ * These endpoints are used to create, read, update, and delete users
+ */
+ app.get("/account/user", async (req, res) => {
+  const pk = req.query.pk;
+  const user = await getUser(pk)
+  console.log(user)
+  res.json(user)
+});
+
+app.post("/account/user", async (req, res) => {
+  const data = req.body;
+  const user = await createUser(data)
+  console.log(user)
+  res.json(user)
+});
+
+/**
+ * Integration endpoints
+ * These endpoints are used to create, read, update, and delete 3rd party integrations for a user
+ */
+ app.get("/account/integration", async (req, res) => {
+  const type = req.query.type;
+  const pk = req.query.pk;
+  const user = await getIntegration(type, pk)
+  console.log(user)
+  res.json(user)
+});
+
+app.post("/account/integration/:type/:pk", async (req, res) => {
+  const type = req.params.type;
+  const pk = req.params.pk;
+  const data = req.body;
+  const user = await createIntegration(type, pk, data)
+  console.log(user)
+  res.json(user)
 });

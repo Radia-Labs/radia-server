@@ -1,7 +1,26 @@
 import request from "request";
+import { ThirdwebSDK } from "@thirdweb-dev/sdk";
+import uuid from 'uuid';
 import dotenv from "dotenv";
 dotenv.config();
 
+import AWS from 'aws-sdk';
+export const TABLE_NAME = process.env.DB_TABLE_NAME;
+export const PARTITION_KEY = 'pk';
+export const SORT_KEY = 'sk';
+
+export const DynamoDB = new AWS.DynamoDB({
+  accessKeyId: process.env.AWS_ACCESS_ID,
+  secretAccessKey: process.env.AWS_ACCESS_SECRET,
+  region: process.env.AWS_REGION
+});
+export const documentClient = new AWS.DynamoDB.DocumentClient({
+  service: DynamoDB
+});
+
+/**
+ * Binance API functions. Used to get prices of various cryptocurrencies.
+ */
 export const getSolUSDPrice = () => {
   return new Promise((resolve, reject) => {
     const url = "https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT";
@@ -28,6 +47,9 @@ export const getPolygonUSDPrice = () => {
   });
 };
 
+/**
+ * SimpleHash functions. Used to query varios cahins and addresses.
+ */
 export const getNFTsFromSimpleHash = (chains, addresses) => {
   return new Promise((resolve, reject) => {
     const options = {
@@ -48,13 +70,10 @@ export const getNFTsFromSimpleHash = (chains, addresses) => {
 };
 
 /**
- * Authorization Code and Refresh Token oAuth2 flows to authenticate against
- * the Spotify Accounts.
- *
- * For more information, read
- * https://developer.spotify.com/web-api/authorization-guide/#client_credentials_flow
+ * Spotify functions. Authorization Code and Refresh Token oAuth2 flows to authenticate against
+ * the Spotify Accounts. Also these functions are used to get the Spotify user's recently played tracks and match them specific timeframes. 
+ * For more information, read https://developer.spotify.com/web-api/authorization-guide/#client_credentials_flow
  */
-
 var client_id = process.env.SPOTIFY_CLIENT_ID;
 var client_secret = process.env.SPOTIFY_CLIENT_SECRET;
 var redirect_uri = process.env.SPOTIFY_REDIRECT_URI;
@@ -106,3 +125,152 @@ export const refreshSpotifyAccessToken = (refreshToken) => {
     });
   });
 };
+
+
+export const getSpotifyRecentPlayed = (data) => {
+  var options = {
+    url: "https://api.spotify.com/v1/me/player/recently-played",
+    headers: {
+      Authorization: `Bearer ${data.accessToken}`,
+    },
+    json: true,
+    qs: {}
+  };
+  if (data.after)
+    options.qs = {after: data.after}
+  if (data.before)
+    options.qs = {before: data.before}
+  options.qs = {limit: 50}
+
+  return new Promise((resolve, reject) => {
+    request.get(options, function (error, response, body) {
+      if (error)
+        resolve({error: true, message: "Something went wrong with the request. Try again.", statusCode: 500});
+      if (!error && response.statusCode === 401)
+        resolve({error: true, message: "Unauthorized", statusCode: 401});
+      if (!error && response.statusCode === 200) {
+        // checkIfTrackReleaseDateWithinLast24Hours(body.items) // TODO: this would probably go in the lambda function
+        resolve(body);
+      }
+    });
+  });
+}
+
+export const checkIfTrackReleaseDateWithinLast24Hours = (items) => {
+  items.forEach(item => {
+    if (item.track.album.release_date) {
+      const releaseDate = new Date(item.track.album.release_date)
+      const now = new Date()
+      const diff = now - releaseDate
+      if (diff > 0 && diff < (24 * 3600 * 1000)) {
+        console.log(`${item.track.name} is within 24 hours of release`)
+        // TODO: mint NFT to wallet address
+      }
+    }
+  });
+}
+
+
+/**
+ * Thirdweb functions.
+ * These functions are used to get data from the ThirdwebAPI and mint NFTs to a wallet address.
+ */
+export const mintNFTToAddress = async (walletAddress) => {
+  const sdk = ThirdwebSDK.fromPrivateKey(process.env.DEPLOYER_ACCOUNT_PK, "polygon");
+
+  // Custom metadata of the NFT, note that you can fully customize this metadata with other properties.
+  const metadata = {
+    name: "Dragon NFT",
+    description: "This is a cool Dragon NFT",
+    image: "https://gateway.thirdweb.dev/ipfs/QmbCBTV8ZzKPJPG2oikkC1uSXtJZGJD2c8gstxe5AzwbNP/0.png", // This can be an image url or file
+  };
+
+  const nftCollection = sdk.getNFTCollection(process.env.DRAGON_NFT_CONTRACT_ADDRESS);
+  
+  const tx = await nftCollection.mintTo(walletAddress, metadata);
+  const receipt = tx.receipt; // the transaction receipt
+  const tokenId = tx.id; // the id of the NFT minted
+  const nft = await tx.data(); // (optional) fetch details of minted NFT  
+
+  console.log(receipt, tokenId, nft)
+}
+
+
+/**
+ * DynamoDB User Functions.
+ * These functions are used to interact with the DynamoDB table that stores user information
+ */
+export const createUser = async (data) => {
+  const pk = uuid.v4();
+  const newItem = {
+    TableName: TABLE_NAME,
+    Item: {
+      [PARTITION_KEY]: pk,
+      [SORT_KEY]: `Auth|${pk}`,
+      created: Date.now(),
+      updated: Date.now(),
+      ...data,
+    },
+  };
+
+  return documentClient
+    .put(newItem)
+    .promise()
+    .then((_) => {
+      return Promise.resolve(newItem.Item);
+    });
+};
+
+export const getUser = (pk) => {
+  const queryParams = {
+      TableName: TABLE_NAME,
+      KeyConditionExpression: `${PARTITION_KEY} = :pk and ${SORT_KEY} = :sk`,
+      ExpressionAttributeValues: {
+          ':pk': pk,
+          ':sk': `Auth|${pk}`
+      },
+  }
+
+  return documentClient.query(queryParams).promise()
+}
+
+
+
+/**
+ * DynamoDB Integration Functions.
+ * These functions are used to interact with the DynamoDB table that stores user integration information
+ */
+ export const createIntegration = async (type, pk, data) => {
+  const newItem = {
+    TableName: TABLE_NAME,
+    Item: {
+      [PARTITION_KEY]: pk,
+      [SORT_KEY]: `Integration|${type}`,
+      created: Date.now(),
+      updated: Date.now(),
+      ...data,
+    },
+  };
+
+  return documentClient
+    .put(newItem)
+    .promise()
+    .then((_) => {
+      return Promise.resolve(newItem.Item);
+    });
+};
+
+export const getIntegration = (type, pk) => {
+  const queryParams = {
+      TableName: TABLE_NAME,
+      KeyConditionExpression: `${PARTITION_KEY} = :pk and ${SORT_KEY} = :sk`,
+      ExpressionAttributeValues: {
+          ':pk': pk,
+          ':sk': `Integration|${type}`
+      },
+  }
+
+  console.log(queryParams)
+
+  return documentClient.query(queryParams).promise()
+}
