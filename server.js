@@ -1,32 +1,29 @@
-// import Web3 from "web3";
-// import solanaWeb3 from "@solana/web3.js";
-import pkg from "@toruslabs/openlogin-ed25519";
-import Moralis from "moralis/node.js";
-import express from "express";
-import bodyParser from "body-parser";
-import dotenv from "dotenv";
-import {
+const serverless = require('serverless-http')
+const Moralis = require("moralis/node.js")
+const express = require("express")
+const bodyParser = require("body-parser")
+const { getED25519Key } = require("@toruslabs/openlogin-ed25519");
+const dotenv = require("dotenv")
+const {
   getSolUSDPrice,
   getPolygonUSDPrice,
   getNFTsFromSimpleHash,
   getSpotifyAuthTokens,
   refreshSpotifyAccessToken,
-  getSpotifyRecentPlayed,
   mintNFTToAddress,
   getUser,
   createUser,
   getIntegration,
   createIntegration
-} from "./utils.js";
-// import bs58 from 'bs58';
-const { getED25519Key } = pkg;
+} = require("./utils.js")
+
 const app = express();
-const port = 3000;
+const port = 8000;
 app.use(bodyParser.json());
 
 dotenv.config();
 try {
-  await Moralis.start({
+  Moralis.start({
     serverUrl: process.env.MORALIS_URL,
     appId: process.env.MORALIS_APP_ID,
     masterKey: process.env.MORALIS_MASTER_KEY,
@@ -36,6 +33,14 @@ try {
 } catch (error) {
   console.log("Error strting Moralis. Confirm dApp is awake.")
 }
+
+app.get("/verify/jwt", (req, res) => {
+  // Incase of ed25519 curve
+  const app_scoped_privkey = req.headers.privKey
+  const ed25519Key = getED25519Key(Buffer.from(app_scoped_privkey.padStart(64, "0"), "hex"));
+  const app_pub_key = ed25519Key.pk.toString("hex");  
+  res.json({appPubKey: app_pub_key});
+})
 
 app.get("/account/balances/eth", async (req, res) => {
   const options = { chain: "goerli", address: req.query.address }; // TODO: support maininet chain
@@ -115,18 +120,6 @@ app.get("/account/nfts", async (req, res) => {
 });
 
 /**
- * ThirdWeb integration endpoints. 
- * These endpoints are used to integrate with the ThirdWeb SDK
- */
-app.post("/integration/thirdweb/nft/mint", async (req, res) => {
-  const walletAddress = req.body.walletAddress;
-  const tokenId = req.body.tokenId;
-  const result = await mintNFTToAddress(walletAddress, tokenId);
-  res.json(result);
-});
-
-
-/**
  * Spotify integration endpoints. /integration/spotify/auth flow to get access token.
  * Subsequent data endpoints require a Spotify access token.
  *
@@ -146,15 +139,12 @@ app.get("/integration/spotify/refresh-token", async (req, res) => {
     .catch((err) => console.log("Error refreshing token:", err));
 });
 
-app.get("/integration/spotify/recent-played", (req, res) => {
-  getSpotifyRecentPlayed(req.query)
-    .then((tracks) => res.json(tracks))
-    .catch((err) => console.log("Error getting spotify recent tracks: ", err));
-})
-
-app.listen(port, () => {
-  console.log(`Example app listening on port ${port}`);
-});
+// TODO: not using this in app, resides in lambda function 
+// app.get("/integration/spotify/recent-played", (req, res) => {
+//   getSpotifyRecentPlayed(req.query)
+//     .then((tracks) => res.json(tracks))
+//     .catch((err) => console.log("Error getting spotify recent tracks: ", err));
+// })
 
 /**
  * User endpoints
@@ -194,3 +184,37 @@ app.post("/account/integration/:type/:pk", async (req, res) => {
   console.log(user)
   res.json(user)
 });
+
+
+/**
+ * ThirdWeb integration endpoints. 
+ * Private Route: requires x-api-key in headers
+ * These endpoints are used to integrate with the ThirdWeb SDK
+ */
+ app.post("/nft/mint/spotify/track", async (req, res) => {
+  console.log("this is what the body looks like: ", req.body)
+  const walletAddress = req.body.walletAddress;
+  // const tokenId = req.body.tokenId; // TODO: might need tokenId at some point 
+  const item = req.body.track;
+
+  // Custom metadata of the NFT, note that you can fully customize this metadata with other properties.
+  let artists = item.track.artists.map((artist) => artist.name).join(", ");
+  artists = artists.replace(/,\s*$/, "");
+  const nftMetadata = {
+    name: item.track.name,
+    description: `${item.track.name} from ${artists} played at ${item.played_at}`,
+    image: item.track.album.images[0].url, // TODO: this will be the album art of the track for now. We'd want to switch this to be a Radia NFT I'd imagine.
+    track: item
+  };
+
+  console.log("This is our nft metadata: ", nftMetadata);
+
+  const result = await mintNFTToAddress(walletAddress, nftMetadata);
+  res.json(result);
+});
+
+app.listen(port, () => {
+  console.log(`Example app listening on port ${port}`);
+});
+
+module.exports.handler = serverless(app)

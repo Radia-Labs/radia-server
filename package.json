@@ -1,5 +1,4 @@
 {
-  "type": "module",
   "name": "radia-server",
   "version": "1.0.0",
   "description": "",
@@ -16,14 +15,17 @@
     "http": "^0.0.1-security",
     "moralis": "^1.8.0",
     "request": "^2.88.2",
+    "serverless-http": "^3.0.1",
     "web3": "^1.7.4"
   },
   "devDependencies": {
-    "nodemon": "^2.0.18"
+    "nodemon": "^2.0.18",
+    "serverless-add-api-key": "^4.2.1"
   },
   "scripts": {
     "test": "nodemon server.js",
-    "start": "nodemon server.js"
+    "start": "nodemon server.js",
+    "deploy": "sls deploy --aws-profile radia-server-deployer"
   },
   "author": "",
   "license": "ISC"

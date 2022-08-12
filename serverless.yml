@@ -1,0 +1,30 @@
+service: radia-server
+plugins:
+  - serverless-add-api-key
+provider:
+  name: aws
+  runtime: nodejs14.x
+  stage: prod
+  region: us-east-1
+custom: 
+  apiKeys:
+    - name: radia-server-api-key
+functions:
+  app:
+    handler: server.handler 
+    timeout: 30
+    events: 
+      - http:
+          path: /
+          method: ANY
+          cors: true
+      - http:
+          path: /{proxy+}
+          method: ANY
+          cors: true
+      - http:
+          path: /nft/mint/spotify/track
+          method: POST
+          cors: true
+          private: true          
+  
