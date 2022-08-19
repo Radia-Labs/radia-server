@@ -1,8 +1,9 @@
 const serverless = require('serverless-http')
+const cors = require('cors')
+const bodyParser = require("body-parser")
 const Moralis = require("moralis/node.js")
 const express = require("express")
-const bodyParser = require("body-parser")
-const { getED25519Key } = require("@toruslabs/openlogin-ed25519");
+const { getED25519Key } = require("@toruslabs/openlogin-ed25519")
 const dotenv = require("dotenv")
 const {
   getSolUSDPrice,
@@ -14,11 +15,15 @@ const {
   getUser,
   createUser,
   getIntegration,
-  createIntegration
+  createIntegration,
+  getCollectibles,
+  getArtists,
+  getSpotifyArtist
 } = require("./utils.js")
 
 const app = express();
 const port = 8000;
+app.use(cors())
 app.use(bodyParser.json());
 
 dotenv.config();
@@ -127,8 +132,9 @@ app.get("/account/nfts", async (req, res) => {
  */
 app.get("/integration/spotify/auth", async (req, res) => {
   const code = req.query.code;
+  console.log("Getting Spotify access token...", code);
   getSpotifyAuthTokens(code)
-    .then(async (json) => res.json(json))
+    .then((json) => res.json(json))
     .catch((err) => console.log("Error getting spotify Refresh Token: ", err));
 });
 
@@ -137,6 +143,12 @@ app.get("/integration/spotify/refresh-token", async (req, res) => {
   refreshSpotifyAccessToken(refreshToken)
     .then((token) => res.json(token))
     .catch((err) => console.log("Error refreshing token:", err));
+});
+
+app.get("/integration/spotify/artist", async (req, res) => {
+  getSpotifyArtist(req.query)
+    .then((token) => res.json(token))
+    .catch((err) => console.log("Error getting spotify artist:", err));
 });
 
 // TODO: not using this in app, resides in lambda function 
@@ -153,7 +165,6 @@ app.get("/integration/spotify/refresh-token", async (req, res) => {
  app.get("/account/user", async (req, res) => {
   const pk = req.query.pk;
   const user = await getUser(pk)
-  console.log(user)
   res.json(user)
 });
 
@@ -163,6 +174,29 @@ app.post("/account/user", async (req, res) => {
   console.log(user)
   res.json(user)
 });
+
+/**
+ * Collectibles endpoints
+ * These endpoints are used to create, read, update, and delete collectibles
+ */
+ app.get("/account/collectibles", async (req, res) => {
+  const pk = req.query.pk;
+  const lastEvaluatedKey = req.query.lastEvaluatedKey;
+  const user = await getCollectibles(pk, lastEvaluatedKey)
+  res.json(user)
+});
+
+/**
+ * Artists endpoints
+ * These endpoints are used to create, read, update, and delete artists
+ */
+ app.get("/account/artists", async (req, res) => {
+  const pk = req.query.pk;
+  const lastEvaluatedKey = req.query.lastEvaluatedKey;
+  const user = await getArtists(pk, lastEvaluatedKey)
+  res.json(user)
+});
+
 
 /**
  * Integration endpoints

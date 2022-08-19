@@ -75,8 +75,7 @@ module.exports.getPolygonUSDPrice = function() {
  */
 var client_id = process.env.SPOTIFY_CLIENT_ID;
 var client_secret = process.env.SPOTIFY_CLIENT_SECRET;
-var redirect_uri = process.env.SPOTIFY_REDIRECT_URI;
-
+var redirect_uri = process.env.SPOTIFY_WEB_REDIRECT_URI;
 module.exports.getSpotifyAuthTokens = function(code) {
   var authOptions = {
     url: "https://accounts.spotify.com/api/token",
@@ -93,7 +92,7 @@ module.exports.getSpotifyAuthTokens = function(code) {
     json: true,
   };
   return new Promise((resolve, reject) => {
-    request.post(authOptions, function (error, response, body) {
+    request.post(authOptions, function (error, response, body) {    
       if (!error && response.statusCode === 200) {
         resolve(body);
       }
@@ -117,7 +116,6 @@ module.exports.refreshSpotifyAccessToken =function(refreshToken) {
   };
   return new Promise((resolve, reject) => {
     request.post(authOptions, function (error, response, body) {
-      console.log(response.statusCode)
       if (!error && response.statusCode === 200) {
         var token = body.access_token;
         resolve(token);
@@ -125,6 +123,29 @@ module.exports.refreshSpotifyAccessToken =function(refreshToken) {
     });
   });
 };
+
+module.exports.getSpotifyArtist = function(data) {
+  var options = {
+    url: `https://api.spotify.com/v1/artists/${data.id}`,
+    headers: {
+      Authorization: `Bearer ${data.accessToken}`,
+    },
+    json: true
+  };
+
+  return new Promise((resolve, reject) => {
+    request.get(options, function (error, response, body) {
+      if (error)
+        resolve({error: true, message: "Something went wrong with the request. Try again.", statusCode: 500});
+      if (!error && response.statusCode === 401)
+        resolve({error: true, message: "Unauthorized", statusCode: 401});
+      if (!error && response.statusCode === 200) {
+        // checkIfTrackReleaseDateWithinLast24Hours(body.items) // TODO: this would probably go in the lambda function
+        resolve(body);
+      }
+    });
+  });
+}
 
 // TODO: deprecated- now reside within lambda functions
 // module.exports.getSpotifyRecentPlayed = function(data) {
@@ -216,7 +237,6 @@ module.exports.refreshSpotifyAccessToken =function(refreshToken) {
 };
 
 module.exports.getUser = (pk) => {
-  console.log(pk)
   const queryParams = {
       TableName: TABLE_NAME,
       KeyConditionExpression: `${PARTITION_KEY} = :pk and ${SORT_KEY} = :sk`,
@@ -228,8 +248,6 @@ module.exports.getUser = (pk) => {
 
   return documentClient.query(queryParams).promise()
 }
-
-
 
 /**
  * DynamoDB Integration Functions.
@@ -264,8 +282,41 @@ module.exports.getIntegration = function(type, pk) {
           ':sk': `Integration|${type}`
       },
   }
+  return documentClient.query(queryParams).promise()
+}
 
-  console.log(queryParams)
+
+module.exports.getCollectibles = (pk, lastEvaluatedKey) => {
+  const queryParams = {
+      TableName: TABLE_NAME,
+      KeyConditionExpression: `${PARTITION_KEY} = :pk and begins_with(${SORT_KEY}, :sk)`,
+      ExpressionAttributeValues: {
+          ':pk': pk,
+          ':sk': `Collectible|`
+      },
+      Limit: 4
+  }
+  if (lastEvaluatedKey){
+    queryParams.ExclusiveStartKey = JSON.parse(lastEvaluatedKey);
+  }
+
+  return documentClient.query(queryParams).promise()
+}
+
+
+module.exports.getArtists = (pk, lastEvaluatedKey) => {
+  const queryParams = {
+      TableName: TABLE_NAME,
+      KeyConditionExpression: `${PARTITION_KEY} = :pk and begins_with(${SORT_KEY}, :sk)`,
+      ExpressionAttributeValues: {
+          ':pk': pk,
+          ':sk': `Artist|`
+      },
+      Limit: 9
+  }
+  if (lastEvaluatedKey){
+    queryParams.ExclusiveStartKey = JSON.parse(lastEvaluatedKey);
+  }
 
   return documentClient.query(queryParams).promise()
 }
