@@ -147,6 +147,29 @@ module.exports.getSpotifyArtist = function(data) {
   });
 }
 
+module.exports.getSpotifyTopArtists = function(accessToken) {
+  var options = {
+    url: `https://api.spotify.com/v1/me/top/artists`,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    json: true
+  };
+
+  return new Promise((resolve, reject) => {
+    request.get(options, function (error, response, body) {
+      console.log(response)
+      if (error)
+        resolve({error: true, message: "Something went wrong with the request. Try again.", statusCode: 500});
+      if (!error && response.statusCode === 401)
+        resolve({error: true, message: "Unauthorized", statusCode: 401});
+      if (!error && response.statusCode === 200) {
+        resolve(body);
+      }
+    });
+  });
+}
+
 // TODO: deprecated- now reside within lambda functions
 // module.exports.getSpotifyRecentPlayed = function(data) {
 //   var options = {

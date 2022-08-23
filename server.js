@@ -18,7 +18,8 @@ const {
   createIntegration,
   getCollectibles,
   getArtists,
-  getSpotifyArtist
+  getSpotifyArtist,
+  getSpotifyTopArtists
 } = require("./utils.js")
 
 const app = express();
@@ -193,10 +194,16 @@ app.post("/account/user", async (req, res) => {
  app.get("/account/artists", async (req, res) => {
   const pk = req.query.pk;
   const lastEvaluatedKey = req.query.lastEvaluatedKey;
-  const user = await getArtists(pk, lastEvaluatedKey)
-  res.json(user)
+  const artists = await getArtists(pk, lastEvaluatedKey)
+  res.json(artists)
 });
 
+app.get("/account/artists/top", async (req, res) => {
+  const refreshToken = req.query.refreshToken;
+  const freshToken = await refreshSpotifyAccessToken(refreshToken);
+  const artists = await getSpotifyTopArtists(freshToken)
+  res.json(artists)
+});
 
 /**
  * Integration endpoints
