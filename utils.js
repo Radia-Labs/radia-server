@@ -5,6 +5,7 @@ dotenv.config();
 
 const AWS =  require('aws-sdk');
 const TABLE_NAME = process.env.DB_TABLE_NAME;
+const ARTIST_TABLE_NAME = process.env.ARTIST_DB_TABLE_NAME;
 const PARTITION_KEY = 'pk';
 const SORT_KEY = 'sk';
 
@@ -309,16 +310,18 @@ module.exports.getIntegration = function(type, pk) {
 }
 
 
-module.exports.getCollectibles = (pk, lastEvaluatedKey) => {
+module.exports.getCollectibles = (pk, limit, lastEvaluatedKey) => {
   const queryParams = {
       TableName: TABLE_NAME,
       KeyConditionExpression: `${PARTITION_KEY} = :pk and begins_with(${SORT_KEY}, :sk)`,
       ExpressionAttributeValues: {
           ':pk': pk,
           ':sk': `Collectible|`
-      },
-      Limit: 4
+      }
   }
+  if (limit)
+    queryParams.Limit = limit
+    
   if (lastEvaluatedKey){
     queryParams.ExclusiveStartKey = JSON.parse(lastEvaluatedKey);
   }
@@ -342,4 +345,83 @@ module.exports.getArtists = (pk, lastEvaluatedKey) => {
   }
 
   return documentClient.query(queryParams).promise()
+}
+
+module.exports.getArtist = (pk) => {
+  const queryParams = {
+      TableName: ARTIST_TABLE_NAME,
+      KeyConditionExpression: `${PARTITION_KEY} = :pk and begins_with(${SORT_KEY}, :sk)`,
+      ExpressionAttributeValues: {
+          ':pk': pk,
+          ':sk': `Artist|`
+      },
+  }
+
+  return documentClient.query(queryParams).promise()
+}
+
+module.exports.getArtistCollectibles = (pk) => {
+  const queryParams = {
+      TableName: ARTIST_TABLE_NAME,
+      KeyConditionExpression: `${PARTITION_KEY} = :pk and begins_with(${SORT_KEY}, :sk)`,
+      ExpressionAttributeValues: {
+          ':pk': pk,
+          ':sk': `Collectible|`
+      },
+  }
+
+  return documentClient.query(queryParams).promise()
+}
+
+module.exports.getArtistCollectiblesBySk = (sk) => {
+  const queryParams = { 
+    TableName: TABLE_NAME,
+    IndexName: 'sk-index',
+    KeyConditionExpression: 'sk = :sk',
+    ExpressionAttributeValues: {':sk': sk} 
+  };  
+
+  return documentClient.query(queryParams).promise()
+}
+
+module.exports.getArtistCollectors = (pk) => {
+  const queryParams = {
+      TableName: ARTIST_TABLE_NAME,
+      KeyConditionExpression: `${PARTITION_KEY} = :pk and begins_with(${SORT_KEY}, :sk)`,
+      ExpressionAttributeValues: {
+          ':pk': pk,
+          ':sk': `Collector|`
+      },
+  }
+
+  return documentClient.query(queryParams).promise()
+}
+
+
+function padTo2Digits(num) {
+  return num.toString().padStart(2, '0');
+}
+
+module.exports.getCurrentAcheivement = (streamedMilliseconds) => {
+            
+  if (streamedMilliseconds < 3600000 ) {
+    return '1 Hour Streamed'
+  }
+
+  if (streamedMilliseconds > 3600000 && streamedMilliseconds < 3600000 * 5) {
+    return '5 Hours Streamed'
+  }  
+  
+  if (streamedMilliseconds > 3600000 * 5 && streamedMilliseconds < 3600000 * 10) {
+    return '10 Hours Streamed'
+  }       
+
+  if (streamedMilliseconds > 3600000 * 10 && streamedMilliseconds < 3600000 * 15) {
+    return '15 Hours Streamed'
+  }        
+
+  if (streamedMilliseconds > 3600000 * 15 && streamedMilliseconds < 3600000 * 25) {
+    return '25 Hours Streamed'
+  }     
+
 }

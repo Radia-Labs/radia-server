@@ -18,8 +18,13 @@ const {
   createIntegration,
   getCollectibles,
   getArtists,
+  getArtist,
   getSpotifyArtist,
-  getSpotifyTopArtists
+  getSpotifyTopArtists,
+  getArtistCollectors,
+  getArtistCollectibles,
+  getCurrentAcheivement,
+  getArtistCollectiblesBySk
 } = require("./utils.js")
 
 const app = express();
@@ -182,8 +187,9 @@ app.post("/account/user", async (req, res) => {
  */
  app.get("/account/collectibles", async (req, res) => {
   const pk = req.query.pk;
+  const limit = req.query.limit;
   const lastEvaluatedKey = req.query.lastEvaluatedKey;
-  const user = await getCollectibles(pk, lastEvaluatedKey)
+  const user = await getCollectibles(pk, limit, lastEvaluatedKey)
   res.json(user)
 });
 
@@ -205,6 +211,32 @@ app.get("/account/artists/top", async (req, res) => {
   res.json(artists)
 });
 
+app.get("/artist/:id", async (req, res) => {
+  const id = req.params.id;
+  const artist = await getArtist(id)
+  res.json(artist)
+});
+
+app.get("/artist/collectibles/sk", async (req, res) => {
+  const sk = req.query.sk;
+  console.log(sk)
+  const collectibles = await getArtistCollectiblesBySk(sk)
+  console.log(collectibles, 88)
+  res.json(collectibles)
+});
+
+app.get("/artist/collectibles/:id", async (req, res) => {
+  const id = req.params.id;
+  const collectibles = await getArtistCollectibles(id)
+  res.json(collectibles)
+});
+
+app.get("/artist/collectors/:id", async (req, res) => {
+  const id = req.params.id;
+  const collectors = await getArtistCollectors(id)
+  res.json(collectors)
+});
+
 /**
  * Integration endpoints
  * These endpoints are used to create, read, update, and delete 3rd party integrations for a user
@@ -222,10 +254,8 @@ app.post("/account/integration/:type/:pk", async (req, res) => {
   const pk = req.params.pk;
   const data = req.body;
   const user = await createIntegration(type, pk, data)
-  console.log(user)
   res.json(user)
 });
-
 
 /**
  * ThirdWeb integration endpoints. 
@@ -246,6 +276,27 @@ app.post("/account/integration/:type/:pk", async (req, res) => {
     description: `${item.track.name} from ${artists} played at ${item.played_at}`,
     image: item.track.album.images[0].url, // TODO: this will be the album art of the track for now. We'd want to switch this to be a Radia NFT I'd imagine.
     track: item
+  };
+
+  console.log("This is our nft metadata: ", nftMetadata);
+
+  const result = await mintNFTToAddress(walletAddress, nftMetadata);
+  res.json(result);
+});
+
+app.post("/nft/mint/spotify/artist", async (req, res) => {
+  console.log("this is what the body looks like: ", req.body)
+  const walletAddress = req.body.walletAddress;
+  // const tokenId = req.body.tokenId; // TODO: might need tokenId at some point 
+  const item = req.body.artist;
+  const streamedMilliseconds = req.body.streamedMilliseconds;
+
+  // Custom metadata of the NFT, note that you can fully customize this metadata with other properties.
+  const nftMetadata = {
+    name: item.name,
+    description: `${item.name} - ${getCurrentAcheivement(streamedMilliseconds)}`,
+    image: item.images[0].url, // TODO: this will be the album art of the track for now. We'd want to switch this to be a Radia NFT I'd imagine.
+    artist: item
   };
 
   console.log("This is our nft metadata: ", nftMetadata);
