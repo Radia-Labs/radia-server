@@ -17,14 +17,14 @@ const {
   getIntegration,
   createIntegration,
   getCollectibles,
+  getCollectible,
   getArtists,
   getArtist,
-  getSpotifyArtist,
   getSpotifyTopArtists,
   getArtistCollectors,
   getArtistCollectibles,
   getCurrentAcheivement,
-  getArtistCollectiblesBySk
+  getCollectiblesBySk
 } = require("./utils.js")
 
 const app = express();
@@ -123,6 +123,14 @@ app.post("/account/integration/:type/:pk", verifyAuth, async (req, res) => {
   res.json(user)
 });
 
+app.get("/account/collectible", verifyAuth, async (req, res) => {
+  const pk = req.query.pk;
+  const sk = req.query.sk;
+  const collectible = await getCollectible(pk, sk)
+  res.json(collectible)
+});
+
+
 /**
  * Artists endpoints
  * These endpoints are used to read artists
@@ -150,9 +158,8 @@ app.get("/artist/:id", verifyAuth, async (req, res) => {
 app.get("/artist/collectibles/sk", verifyAuth, async (req, res) => {
   const sk = req.query.sk;
   console.log(sk)
-  const collectibles = await getArtistCollectiblesBySk(sk)
-  console.log(collectibles, 88)
-  res.json(collectibles)
+  const collectible = await getCollectiblesBySk(sk)
+  res.json(collectible)
 });
 
 app.get("/artist/collectibles/:id", verifyAuth, async (req, res) => {
@@ -188,7 +195,6 @@ app.get("/artist/collectors/:id", verifyAuth, async (req, res) => {
  * These endpoints are used to integrate with the ThirdWeb SDK
  */
  app.post("/nft/mint/spotify/track", async (req, res) => {
-  console.log("this is what the body looks like: ", req.body)
   const walletAddress = req.body.walletAddress;
   // const tokenId = req.body.tokenId; // TODO: might need nft tokenId at some point 
   const item = req.body.track;

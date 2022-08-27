@@ -329,8 +329,31 @@ module.exports.getCollectibles = (pk, limit, lastEvaluatedKey) => {
   return documentClient.query(queryParams).promise()
 }
 
+module.exports.getCollectible = (pk, sk) => {
+  const queryParams = {
+      TableName: TABLE_NAME,
+      KeyConditionExpression: `${PARTITION_KEY} = :pk and ${SORT_KEY} = :sk`,
+      ExpressionAttributeValues: {
+          ':pk': pk,
+          ':sk': sk
+      }
+  }
 
-module.exports.getArtists = (pk, lastEvaluatedKey) => {
+  return documentClient.query(queryParams).promise()
+}
+
+module.exports.getCollectiblesBySk = (sk) => {
+  const queryParams = { 
+    TableName: TABLE_NAME,
+    IndexName: 'sk-index',
+    KeyConditionExpression: 'sk = :sk',
+    ExpressionAttributeValues: {':sk': sk} 
+  };  
+
+  return documentClient.query(queryParams).promise()
+}
+
+module.exports.getArtists = (pk, limit, lastEvaluatedKey) => {
   const queryParams = {
       TableName: TABLE_NAME,
       KeyConditionExpression: `${PARTITION_KEY} = :pk and begins_with(${SORT_KEY}, :sk)`,
@@ -338,11 +361,13 @@ module.exports.getArtists = (pk, lastEvaluatedKey) => {
           ':pk': pk,
           ':sk': `Artist|`
       },
-      Limit: 9
   }
   if (lastEvaluatedKey){
     queryParams.ExclusiveStartKey = JSON.parse(lastEvaluatedKey);
   }
+
+  if (limit)
+    queryParams.Limit = limit  
 
   return documentClient.query(queryParams).promise()
 }
@@ -373,17 +398,6 @@ module.exports.getArtistCollectibles = (pk) => {
   return documentClient.query(queryParams).promise()
 }
 
-module.exports.getArtistCollectiblesBySk = (sk) => {
-  const queryParams = { 
-    TableName: TABLE_NAME,
-    IndexName: 'sk-index',
-    KeyConditionExpression: 'sk = :sk',
-    ExpressionAttributeValues: {':sk': sk} 
-  };  
-
-  return documentClient.query(queryParams).promise()
-}
-
 module.exports.getArtistCollectors = (pk) => {
   const queryParams = {
       TableName: ARTIST_TABLE_NAME,
@@ -395,11 +409,6 @@ module.exports.getArtistCollectors = (pk) => {
   }
 
   return documentClient.query(queryParams).promise()
-}
-
-
-function padTo2Digits(num) {
-  return num.toString().padStart(2, '0');
 }
 
 module.exports.getCurrentAcheivement = (streamedMilliseconds) => {
