@@ -8,7 +8,7 @@ const dotenv = require("dotenv")
 const {verifyAuth} = require("./middleware")
 
 const {
-  getNFTsFromSimpleHash,
+  getNFTsByOwner,
   getSpotifyAuthTokens,
   refreshSpotifyAccessToken,
   mintNFTToAddress,
@@ -21,10 +21,14 @@ const {
   getArtists,
   getArtist,
   getSpotifyTopArtists,
+  getSpotifyProfile,
   getArtistCollectors,
   getArtistCollectibles,
   getCurrentAcheivement,
-  getCollectiblesBySk
+  getCollectiblesBySk,
+  getCollections,
+  getCollection,
+  createCollection
 } = require("./utils.js")
 
 const app = express();
@@ -174,20 +178,51 @@ app.get("/artist/collectors/:id", verifyAuth, async (req, res) => {
   res.json(collectors)
 });
 
+/**
+ * Spotify User endpoints
+ */
+app.get("/account/spotify/me", verifyAuth, async (req, res) => {
+  const refreshToken = req.query.refreshToken;
+  const freshToken = await refreshSpotifyAccessToken(refreshToken);
+  const spotify = await getSpotifyProfile(freshToken)
+  console.log(spotify)
+  res.json(spotify)
+});
 
 /**
- * SimpleHash NFT endpoints.
+ * Collections and NFTs endpoints.
  *
- * For more information, read https://simplehash.readme.io/reference/overview
+ * Uses Simplehash to get NFTs for address. For more information, read https://simplehash.readme.io/reference/overview
  */
- app.get("/account/nfts", verifyAuth, async (req, res) => {
-  const nfts = await getNFTsFromSimpleHash(
+ app.get("/account/collections", verifyAuth, async (req, res) => { 
+  const pk = req.query.pk;
+  const collections = await getCollections(pk)
+  res.json(collections)
+});
+
+app.post("/account/collections/:pk", verifyAuth, async (req, res) => {
+  const pk = req.params.pk;
+  const data = req.body;
+  console.log(pk, data)
+  const collection = await createCollection(pk, data)
+  res.json(collection)
+});
+
+app.get("/account/collection", verifyAuth, async (req, res) => {
+  const pk = req.query.pk;
+  const sk = req.query.sk;
+  console.log(pk, data)
+  const collection = await getCollection(pk, sk)
+  res.json(collection)
+});
+
+app.get("/account/nfts", verifyAuth, async (req, res) => {
+  const nfts = await getNFTsByOwner(
     req.query.chains,
     req.query.addresses
   );
   res.json(nfts);
 });
-
 
 /**
  * ThirdWeb integration endpoints. 
@@ -224,8 +259,8 @@ app.post("/nft/mint/spotify/artist", async (req, res) => {
 
   // Custom metadata of the NFT, note that you can fully customize this metadata with other properties.
   const nftMetadata = {
-    name: item.name,
-    description: `${item.name} - ${getCurrentAcheivement(streamedMilliseconds)}`,
+    name: `${item.name} - ${getCurrentAcheivement(streamedMilliseconds)}`,
+    description: `${getCurrentAcheivement(streamedMilliseconds)} of ${item.name} on Spotify.`,
     image: item.images[0].url, // TODO: this will be the album art of the track for now. We'd want to switch this to be a Radia NFT I'd imagine.
     artist: item
   };

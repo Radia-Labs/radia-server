@@ -19,9 +19,10 @@ module.exports.verifyAuth = async (req, res, next) => {
     }
     
     try {
+        // Try social user verification first
         const jwks = jose.createRemoteJWKSet(new URL("https://api.openlogin.com/jwks"));
         const jwtDecoded = await jose.jwtVerify(idToken, jwks, { algorithms: ["ES256"] });
-        if ((jwtDecoded.payload).wallets[0].public_key === app_pub_key) {
+        if ((jwtDecoded.payload).wallets[0].public_key.toLowerCase() === app_pub_key.toLowerCase()) {
             // Verified
             next();
         } else {
@@ -29,7 +30,22 @@ module.exports.verifyAuth = async (req, res, next) => {
         }        
         
     } catch (error) {
-        res.status(401).json({error: 'Unauthorized'})
+        // Try external Wallet verification second
+        const verified = await verifyExternalWallet(idToken, app_pub_key)
+        if (verified)
+            next();
+        else
+            res.status(401).json({error: 'Unauthorized'})
     }
 
+}
+
+const verifyExternalWallet = async (idToken, app_pub_key) => {
+    const jwks = jose.createRemoteJWKSet(new URL("https://auth-js-backend.tor.us/jwks"));
+    const jwtDecoded = await jose.jwtVerify(idToken, jwks, { algorithms: ["ES256"] });
+    if ((jwtDecoded.payload).wallets[0].address.toLowerCase() === app_pub_key.toLowerCase()) {
+        return true;
+    } else {
+        return false;
+    }       
 }

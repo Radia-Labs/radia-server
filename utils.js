@@ -50,7 +50,7 @@ module.exports.getPolygonUSDPrice = function() {
 /**
  * SimpleHash functions. Used to query varios cahins and addresses.
  */
- module.exports.getNFTsFromSimpleHash = function(chains, addresses) {
+ module.exports.getNFTsByOwner= function(chains, addresses) {
   return new Promise((resolve, reject) => {
     const options = {
       method: "GET",
@@ -68,6 +68,63 @@ module.exports.getPolygonUSDPrice = function() {
     });
   });
 };
+
+/**
+ * Collections functions.
+ */
+
+ module.exports.getCollections = (pk, limit, lastEvaluatedKey) => {
+  const queryParams = {
+      TableName: TABLE_NAME,
+      KeyConditionExpression: `${PARTITION_KEY} = :pk and begins_with(${SORT_KEY}, :sk)`,
+      ExpressionAttributeValues: {
+          ':pk': pk,
+          ':sk': `Collection|`
+      }
+  }
+  if (limit)
+    queryParams.Limit = limit
+    
+  if (lastEvaluatedKey){
+    queryParams.ExclusiveStartKey = JSON.parse(lastEvaluatedKey);
+  }
+
+  return documentClient.query(queryParams).promise()
+}
+
+module.exports.getCollection = (pk, sk) => {
+  const queryParams = {
+      TableName: TABLE_NAME,
+      KeyConditionExpression: `${PARTITION_KEY} = :pk and ${SORT_KEY} = :sk`,
+      ExpressionAttributeValues: {
+          ':pk': pk,
+          ':sk': `Collection|${sk}`
+      }
+  }
+
+  return documentClient.query(queryParams).promise()
+}
+
+module.exports.createCollection = async (pk, data) => {
+  const newItem = {
+    TableName: TABLE_NAME,
+    Item: {
+      [PARTITION_KEY]: pk,
+      [SORT_KEY]: `Collection|${data.name}`,
+      created: Date.now(),
+      updated: Date.now(),
+      ...data,
+    },
+  };
+
+  return documentClient
+    .put(newItem)
+    .promise()
+    .then((_) => {
+      return Promise.resolve(newItem.Item);
+    });    
+}
+
 
 /**
  * Spotify functions. Authorization Code and Refresh Token oAuth2 flows to authenticate against
@@ -171,6 +228,29 @@ module.exports.getSpotifyTopArtists = function(accessToken) {
   });
 }
 
+module.exports.getSpotifyProfile = function(accessToken) {
+  var options = {
+    url: `https://api.spotify.com/v1/me`,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    json: true
+  };
+
+  return new Promise((resolve, reject) => {
+    request.get(options, function (error, response, body) {
+      console.log(response)
+      if (error)
+        resolve({error: true, message: "Something went wrong with the request. Try again.", statusCode: 500});
+      if (!error && response.statusCode === 401)
+        resolve({error: true, message: "Unauthorized", statusCode: 401});
+      if (!error && response.statusCode === 200) {
+        resolve(body);
+      }
+    });
+  });
+}
+
 // TODO: deprecated- now reside within lambda functions
 // module.exports.getSpotifyRecentPlayed = function(data) {
 //   var options = {
@@ -223,7 +303,7 @@ module.exports.getSpotifyTopArtists = function(accessToken) {
  module.exports.mintNFTToAddress = async function (walletAddress, metadata) {
   const sdk = ThirdwebSDK.fromPrivateKey(process.env.DEPLOYER_ACCOUNT_PK, "polygon");
 
-  const nftCollection = sdk.getNFTCollection(process.env.DRAGON_NFT_CONTRACT_ADDRESS);
+  const nftCollection = sdk.getNFTCollection(process.env.RADIA_NFT_CONTRACT_ADDRESS);
   
   const tx = await nftCollection.mintTo(walletAddress, metadata);
   const receipt = tx.receipt; // the transaction receipt
