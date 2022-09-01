@@ -50,11 +50,15 @@ module.exports.getPolygonUSDPrice = function() {
 /**
  * SimpleHash functions. Used to query varios cahins and addresses.
  */
- module.exports.getNFTsByOwner= function(chains, addresses) {
+ module.exports.getNFTsByOwner= function(chains, addresses, nextUrl) {
+  let url = `https://api.simplehash.com/api/v0/nfts/owners?chains=${chains}&wallet_addresses=${addresses}`
+  if (nextUrl)
+    url = nextUrl
+
   return new Promise((resolve, reject) => {
     const options = {
       method: "GET",
-      url: `https://api.simplehash.com/api/v0/nfts/owners?chains=${chains}&wallet_addresses=${addresses}`,
+      url: url,
       headers: {
         Accept: "application/json",
         "X-API-KEY": process.env.SIMPLEHASH_API_KEY,
@@ -64,7 +68,7 @@ module.exports.getPolygonUSDPrice = function() {
     request(options, function (error, response, body) {
       if (error) throw new Error(error);
       const data = JSON.parse(body);
-      resolve(data.nfts);
+      resolve(data);
     });
   });
 };
@@ -205,6 +209,28 @@ module.exports.getSpotifyArtist = function(data) {
   });
 }
 
+module.exports.getSpotifySimilarArtists = function(id, accessToken) {
+  var options = {
+    url: `https://api.spotify.com/v1/artists/${id}/related-artists`,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    json: true
+  };
+
+  return new Promise((resolve, reject) => {
+    request.get(options, function (error, response, body) {
+      if (error)
+        resolve({error: true, message: "Something went wrong with the request. Try again.", statusCode: 500});
+      if (!error && response.statusCode === 401)
+        resolve({error: true, message: "Unauthorized", statusCode: 401});
+      if (!error && response.statusCode === 200) {
+        resolve(body);
+      }
+    });
+  });
+}
+
 module.exports.getSpotifyTopArtists = function(accessToken) {
   var options = {
     url: `https://api.spotify.com/v1/me/top/artists`,
@@ -216,7 +242,32 @@ module.exports.getSpotifyTopArtists = function(accessToken) {
 
   return new Promise((resolve, reject) => {
     request.get(options, function (error, response, body) {
-      console.log(response)
+      if (error)
+        resolve({error: true, message: "Something went wrong with the request. Try again.", statusCode: 500});
+      if (!error && response.statusCode === 401)
+        resolve({error: true, message: "Unauthorized", statusCode: 401});
+      if (!error && response.statusCode === 200) {
+        resolve(body);
+      }
+    });
+  });
+}
+
+module.exports.getSpotifyNewMusic = function(accessToken, nextUrl) {
+  let url = 'https://api.spotify.com/v1/browse/new-releases?limit=50'
+  if (nextUrl)
+    url = nextUrl
+
+  var options = {
+    url: url,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    json: true
+  };
+
+  return new Promise((resolve, reject) => {
+    request.get(options, function (error, response, body) {
       if (error)
         resolve({error: true, message: "Something went wrong with the request. Try again.", statusCode: 500});
       if (!error && response.statusCode === 401)
@@ -239,7 +290,6 @@ module.exports.getSpotifyProfile = function(accessToken) {
 
   return new Promise((resolve, reject) => {
     request.get(options, function (error, response, body) {
-      console.log(response)
       if (error)
         resolve({error: true, message: "Something went wrong with the request. Try again.", statusCode: 500});
       if (!error && response.statusCode === 401)
@@ -351,6 +401,36 @@ module.exports.getUser = (pk) => {
   }
 
   return documentClient.query(queryParams).promise()
+}
+
+module.exports.updateUser = (pk, data) => {
+  let updateExpression = '',
+      attrExpression = {},
+      values = {};
+  for (let key in data) {
+      updateExpression += updateExpression === '' ? `SET #${key} = :${key}` : `, #${key} = :${key}`;
+      attrExpression = {
+          ...attrExpression,
+          [`#${key}`]: key
+      }
+      values = {
+          ...values,
+          [`:${key}`]: data[key]
+      }
+  }
+
+  const updateParams = {
+      TableName: TABLE_NAME,
+      Key: {
+          [PARTITION_KEY]: pk,
+          [SORT_KEY]: `Auth|${pk}`,
+      },
+      ExpressionAttributeNames: attrExpression,
+      UpdateExpression: updateExpression,
+      ExpressionAttributeValues: values,
+  }
+
+  return documentClient.update(updateParams).promise()
 }
 
 /**

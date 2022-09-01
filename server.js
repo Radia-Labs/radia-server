@@ -14,6 +14,7 @@ const {
   mintNFTToAddress,
   getUser,
   createUser,
+  updateUser,
   getIntegration,
   createIntegration,
   getCollectibles,
@@ -28,7 +29,9 @@ const {
   getCollectiblesBySk,
   getCollections,
   getCollection,
-  createCollection
+  createCollection,
+  getSpotifySimilarArtists,
+  getSpotifyNewMusic
 } = require("./utils.js")
 
 const app = express();
@@ -64,6 +67,12 @@ try {
 app.post("/account/user", verifyAuth, async (req, res) => {
   const data = req.body;
   const user = await createUser(data)
+  res.json(user)
+});
+
+app.put("/account/user", verifyAuth, async (req, res) => {
+  const data = req.body;
+  const user = await updateUser(data.verifierId, data)
   res.json(user)
 });
 
@@ -103,7 +112,6 @@ app.get("/integration/spotify/auth", verifyAuth, async (req, res) => {
   const type = req.query.type;
   const pk = req.query.pk;
   const user = await getIntegration(type, pk)
-  console.log(user)
   res.json(user)
 });
 
@@ -153,6 +161,22 @@ app.get("/account/artists/top", verifyAuth, async (req, res) => {
   res.json(artists)
 });
 
+app.get("/account/artists/similar", verifyAuth, async (req, res) => {
+  const refreshToken = req.query.refreshToken;
+  const id = req.query.id;
+  const freshToken = await refreshSpotifyAccessToken(refreshToken);
+  const artists = await getSpotifySimilarArtists(id, freshToken)
+  res.json(artists)
+});
+
+app.get("/account/artists/new-music", verifyAuth, async (req, res) => {
+  const refreshToken = req.query.refreshToken;
+  const nextUrl = req.query.nextUrl
+  const freshToken = await refreshSpotifyAccessToken(refreshToken);
+  const newMusic = await getSpotifyNewMusic(freshToken, nextUrl)
+  res.json(newMusic)
+});
+
 app.get("/artist/:id", verifyAuth, async (req, res) => {
   const id = req.params.id;
   const artist = await getArtist(id)
@@ -161,7 +185,6 @@ app.get("/artist/:id", verifyAuth, async (req, res) => {
 
 app.get("/artist/collectibles/sk", verifyAuth, async (req, res) => {
   const sk = req.query.sk;
-  console.log(sk)
   const collectible = await getCollectiblesBySk(sk)
   res.json(collectible)
 });
@@ -185,7 +208,6 @@ app.get("/account/spotify/me", verifyAuth, async (req, res) => {
   const refreshToken = req.query.refreshToken;
   const freshToken = await refreshSpotifyAccessToken(refreshToken);
   const spotify = await getSpotifyProfile(freshToken)
-  console.log(spotify)
   res.json(spotify)
 });
 
@@ -203,7 +225,6 @@ app.get("/account/spotify/me", verifyAuth, async (req, res) => {
 app.post("/account/collections/:pk", verifyAuth, async (req, res) => {
   const pk = req.params.pk;
   const data = req.body;
-  console.log(pk, data)
   const collection = await createCollection(pk, data)
   res.json(collection)
 });
@@ -211,7 +232,6 @@ app.post("/account/collections/:pk", verifyAuth, async (req, res) => {
 app.get("/account/collection", verifyAuth, async (req, res) => {
   const pk = req.query.pk;
   const sk = req.query.sk;
-  console.log(pk, data)
   const collection = await getCollection(pk, sk)
   res.json(collection)
 });
@@ -219,7 +239,8 @@ app.get("/account/collection", verifyAuth, async (req, res) => {
 app.get("/account/nfts", verifyAuth, async (req, res) => {
   const nfts = await getNFTsByOwner(
     req.query.chains,
-    req.query.addresses
+    req.query.addresses,
+    req.query.nextUrl
   );
   res.json(nfts);
 });
