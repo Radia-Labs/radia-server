@@ -73,6 +73,27 @@ module.exports.getPolygonUSDPrice = function() {
   });
 };
 
+module.exports.getNFTByTokenId= function(chain, contractAddress, tokenId) {
+  console.log(chain, contractAddress, tokenId)
+  let url = `https://api.simplehash.com/api/v0/nfts/${chain}/${contractAddress}/${tokenId}`
+  return new Promise((resolve, reject) => {
+    const options = {
+      method: "GET",
+      url: url,
+      headers: {
+        Accept: "application/json",
+        "X-API-KEY": process.env.SIMPLEHASH_API_KEY,
+      },
+    };
+
+    request(options, function (error, response, body) {
+      if (error) throw new Error(error);
+      const data = JSON.parse(body);
+      resolve(data);
+    });
+  });
+};
+
 /**
  * Collections functions.
  */
@@ -102,11 +123,23 @@ module.exports.getCollection = (pk, sk) => {
       KeyConditionExpression: `${PARTITION_KEY} = :pk and ${SORT_KEY} = :sk`,
       ExpressionAttributeValues: {
           ':pk': pk,
-          ':sk': `Collection|${sk}`
+          ':sk': sk
       }
   }
 
   return documentClient.query(queryParams).promise()
+}
+
+module.exports.deleteCollection = (pk, sk) => {
+  const queryParams = {
+      TableName: TABLE_NAME,
+      Key: {
+        [PARTITION_KEY]: pk,
+        [SORT_KEY]: sk
+    }
+  }
+
+  return documentClient.delete(queryParams).promise()
 }
 
 module.exports.createCollection = async (pk, data) => {
@@ -186,11 +219,11 @@ module.exports.refreshSpotifyAccessToken =function(refreshToken) {
   });
 };
 
-module.exports.getSpotifyArtist = function(data) {
+module.exports.getSpotifyArtist = function(id, accessToken) {
   var options = {
-    url: `https://api.spotify.com/v1/artists/${data.id}`,
+    url: `https://api.spotify.com/v1/artists/${id}`,
     headers: {
-      Authorization: `Bearer ${data.accessToken}`,
+      Authorization: `Bearer ${accessToken}`,
     },
     json: true
   };

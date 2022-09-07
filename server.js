@@ -9,6 +9,7 @@ const {verifyAuth} = require("./middleware")
 
 const {
   getNFTsByOwner,
+  getNFTByTokenId,
   getSpotifyAuthTokens,
   refreshSpotifyAccessToken,
   mintNFTToAddress,
@@ -29,9 +30,11 @@ const {
   getCollectiblesBySk,
   getCollections,
   getCollection,
+  deleteCollection,
   createCollection,
   getSpotifySimilarArtists,
-  getSpotifyNewMusic
+  getSpotifyNewMusic,
+  getSpotifyArtist
 } = require("./utils.js")
 
 const app = express();
@@ -98,11 +101,13 @@ app.get("/integration/spotify/auth", verifyAuth, async (req, res) => {
 //     .catch((err) => console.log("Error refreshing token:", err));
 // });
 
-// app.get("/integration/spotify/artist", verifyAuth, async (req, res) => {
-//   getSpotifyArtist(req.query)
-//     .then((token) => res.json(token))
-//     .catch((err) => console.log("Error getting spotify artist:", err));
-// });
+app.get("/integration/spotify/artist", verifyAuth, async (req, res) => {
+  const refreshToken = req.query.refreshToken;
+  const freshToken = await refreshSpotifyAccessToken(refreshToken);  
+  getSpotifyArtist(req.query.id, freshToken)
+    .then((token) => res.json(token))
+    .catch((err) => console.log("Error getting spotify artist:", err));
+});
 
 /**
  * Integration endpoints
@@ -229,6 +234,14 @@ app.post("/account/collections/:pk", verifyAuth, async (req, res) => {
   res.json(collection)
 });
 
+app.delete("/account/collections/:pk", verifyAuth, async (req, res) => {
+  const pk = req.params.pk;
+  const sk = req.body.sk;
+  console.log(pk, sk)
+  const collection = await deleteCollection(pk, sk)
+  res.json(collection)
+});
+
 app.get("/account/collection", verifyAuth, async (req, res) => {
   const pk = req.query.pk;
   const sk = req.query.sk;
@@ -243,6 +256,15 @@ app.get("/account/nfts", verifyAuth, async (req, res) => {
     req.query.nextUrl
   );
   res.json(nfts);
+});
+
+app.get("/account/nft", verifyAuth, async (req, res) => {
+  const nft = await getNFTByTokenId(
+    req.query.chain,
+    req.query.contractAddress,
+    req.query.tokenId
+  );
+  res.json(nft);
 });
 
 /**
