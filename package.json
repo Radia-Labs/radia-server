@@ -21,8 +21,7 @@
     "web3": "^1.7.4"
   },
   "devDependencies": {
-    "nodemon": "^2.0.18",
-    "serverless-add-api-key": "^4.2.1"
+    "nodemon": "^2.0.18"
   },
   "scripts": {
     "test": "nodemon server.js",

@@ -604,6 +604,97 @@ module.exports.getArtistCollectors = (pk) => {
   return documentClient.query(queryParams).promise()
 }
 
+module.exports.getArtistCollector = async (pk, artistId) => {
+  const queryParams = {
+      TableName: ARTIST_TABLE_NAME,
+      KeyConditionExpression: 'pk = :pk and sk = :sk',
+      ExpressionAttributeValues: {
+          ':pk': `${artistId}`,
+          ':sk': `Collector|spotify|${pk}`,
+      },
+  };
+  console.log(queryParams)
+  const collector= await documentClient.query(queryParams).promise();
+  return collector;
+}
+
+module.exports.createArtistCollector = async (artistId, pk, user, collectibleCount) => {
+  const newItem = {
+    TableName: ARTIST_TABLE_NAME,
+    Item: {
+      ['pk']: `${artistId}`,
+      ['sk']: `Collector|spotify|${pk}`,
+      created: Date.now(),
+      updated: Date.now(),
+      collectibleCount,
+      user: {
+        profileImage: user.profileImage,
+        verifierId: user.verifierId,
+        name: user.name,
+        addresses: user.addresses
+      }
+    },
+  };
+
+  return documentClient
+    .put(newItem)
+    .promise()
+    .then((_) => {
+      return Promise.resolve(newItem.Item);
+    });
+}
+
+module.exports.createArtistCollectible = (artist, achievement) => {
+  const newItem = {
+    TableName: ARTIST_TABLE_NAME,
+    Item: {
+      ['pk']: `${artist.id}`,
+      ['sk']: `Collectible|spotify|${achievement}|${artist.id}`,
+      created: Date.now(),
+      updated: Date.now(),
+      achievement,
+      artist
+    },
+  };
+
+  return documentClient
+    .put(newItem)
+    .promise()
+    .then((_) => {
+      return Promise.resolve(newItem.Item);
+    });
+}
+
+module.exports.createCollectible = (pk, artist, achievement, streamedMilliseconds, user, status, transaction) => {
+  const newItem = {
+    TableName: TABLE_NAME,
+    Item: {
+      ['pk']: pk,
+      ['sk']: `Collectible|spotify|${achievement}|${artist.id}`,
+      // created: Date.now(),
+      updated: Date.now(),
+      achievement,
+      streamedMilliseconds,
+      artist,
+      user: {
+        profileImage: user.profileImage,
+        verifierId: user.verifierId,
+        name: user.name,
+        addresses: user.addresses
+      },      
+      status,
+      transaction
+    },
+  };
+
+  return documentClient
+    .put(newItem)
+    .promise()
+    .then((_) => {
+      return Promise.resolve(newItem.Item);
+    });
+}
+
 module.exports.getCurrentAcheivement = (streamedMilliseconds) => {
             
   if (streamedMilliseconds < 3600000 ) {

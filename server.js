@@ -20,8 +20,12 @@ const {
   createIntegration,
   getCollectibles,
   getCollectible,
+  createCollectible,
   getArtists,
   getArtist,
+  getArtistCollector,
+  createArtistCollector,
+  createArtistCollectible,
   getSpotifyTopArtists,
   getSpotifyProfile,
   getArtistCollectors,
@@ -148,6 +152,18 @@ app.get("/account/collectible", verifyAuth, async (req, res) => {
 });
 
 
+app.post("/account/collectible/:pk", verifyAuth, async (req, res) => {
+  const pk = req.params.pk;
+  const artist = req.body.artist;
+  const achievement = req.body.achievement;
+  const streamedMilliseconds = req.body.streamedMilliseconds;
+  const user = req.body.user;
+  const statusName = req.body.status;
+  const transaction = req.body.transaction;
+  const collectible = await createCollectible(pk, artist, achievement, streamedMilliseconds, user, statusName, transaction)
+  res.json(collectible)
+});
+
 /**
  * Artists endpoints
  * These endpoints are used to read artists
@@ -200,10 +216,34 @@ app.get("/artist/collectibles/:id", verifyAuth, async (req, res) => {
   res.json(collectibles)
 });
 
+app.post("/artist/collectible", verifyAuth, async (req, res) => {
+  const artist = req.body.artist;
+  const achievement = req.body.achievement;
+  const collector = await createArtistCollectible(artist, achievement)
+  res.json(collector)
+});
+
 app.get("/artist/collectors/:id", verifyAuth, async (req, res) => {
   const id = req.params.id;
   const collectors = await getArtistCollectors(id)
   res.json(collectors)
+});
+
+app.get("/artist/collector/:id", verifyAuth, async (req, res) => {
+  const id = req.params.id;
+  const pk = req.query.pk;
+  const collector = await getArtistCollector(pk, id)
+  res.json(collector)
+});
+
+app.post("/artist/collector/:id/:pk", verifyAuth, async (req, res) => {
+  const id = req.params.id;
+  const pk = req.params.pk;
+  const user = req.body.user;
+  const collectibleCount = req.body.collectibleCount;
+  const collector = await createArtistCollector(id, pk, user, collectibleCount)
+  console.log("created collector", collector)
+  res.json(collector)
 });
 
 /**
@@ -269,10 +309,9 @@ app.get("/account/nft", verifyAuth, async (req, res) => {
 
 /**
  * ThirdWeb integration endpoints. 
- * Private Route: requires x-api-key in headers
  * These endpoints are used to integrate with the ThirdWeb SDK
  */
- app.post("/nft/mint/spotify/track", async (req, res) => {
+ app.post("/nft/mint/spotify/track", verifyAuth, async (req, res) => {
   const walletAddress = req.body.walletAddress;
   // const tokenId = req.body.tokenId; // TODO: might need nft tokenId at some point 
   const item = req.body.track;
@@ -293,19 +332,19 @@ app.get("/account/nft", verifyAuth, async (req, res) => {
   res.json(result);
 });
 
-app.post("/nft/mint/spotify/artist", async (req, res) => {
+app.post("/nft/mint/spotify/artist", verifyAuth, async (req, res) => {
   console.log("this is what the body looks like: ", req.body)
   const walletAddress = req.body.walletAddress;
   // const tokenId = req.body.tokenId; // TODO: might need tokenId at some point 
-  const item = req.body.artist;
+  const artist = req.body.artist;
   const streamedMilliseconds = req.body.streamedMilliseconds;
 
   // Custom metadata of the NFT, note that you can fully customize this metadata with other properties.
   const nftMetadata = {
-    name: `${item.name} - ${getCurrentAcheivement(streamedMilliseconds)}`,
-    description: `${getCurrentAcheivement(streamedMilliseconds)} of ${item.name} on Spotify.`,
-    image: item.images[0].url, // TODO: this will be the album art of the track for now. We'd want to switch this to be a Radia NFT I'd imagine.
-    artist: item
+    name: `${artist.name} - ${getCurrentAcheivement(streamedMilliseconds)}`,
+    description: `${getCurrentAcheivement(streamedMilliseconds)} of ${artist.name} on Spotify.`,
+    image: artist.images[0].url, // TODO: this will be the album art of the track for now. We'd want to switch this to be a Radia NFT I'd imagine.
+    artist: artist
   };
 
   console.log("This is our nft metadata: ", nftMetadata);
