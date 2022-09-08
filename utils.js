@@ -671,7 +671,7 @@ module.exports.createCollectible = (pk, artist, achievement, streamedMillisecond
     Item: {
       ['pk']: pk,
       ['sk']: `Collectible|spotify|${achievement}|${artist.id}`,
-      // created: Date.now(),
+      created: Date.now(),
       updated: Date.now(),
       achievement,
       streamedMilliseconds,
