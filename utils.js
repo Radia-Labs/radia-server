@@ -644,7 +644,7 @@ module.exports.createArtistCollector = async (artistId, pk, user, collectibleCou
     });
 }
 
-module.exports.createArtistCollectible = (artist, achievement) => {
+module.exports.createArtistCollectible = async (artist, achievement) => {
   const newItem = {
     TableName: ARTIST_TABLE_NAME,
     Item: {
@@ -665,7 +665,7 @@ module.exports.createArtistCollectible = (artist, achievement) => {
     });
 }
 
-module.exports.createCollectible = (pk, artist, achievement, streamedMilliseconds, user, status, transaction) => {
+module.exports.createUserArtistCollectible = async (pk, artist, achievement, streamedMilliseconds, user, status, transaction) => {
   const newItem = {
     TableName: TABLE_NAME,
     Item: {
@@ -695,26 +695,56 @@ module.exports.createCollectible = (pk, artist, achievement, streamedMillisecond
     });
 }
 
+module.exports.createUserTrackCollectible = async (pk, artist, track, achievement, user, status, transaction) => {
+  const newItem = {
+    TableName: TABLE_NAME,
+    Item: {
+      ['pk']: pk,
+      ['sk']: `Collectible|spotify|${achievement}|${artist.id}`,
+      created: Date.now(),
+      updated: Date.now(),
+      achievement,
+      artist,
+      track,
+      user: {
+        profileImage: user.profileImage,
+        verifierId: user.verifierId,
+        name: user.name,
+        addresses: user.addresses
+      },      
+      status,
+      transaction
+    },
+  };
+
+  return documentClient
+    .put(newItem)
+    .promise()
+    .then((_) => {
+      return Promise.resolve(newItem.Item);
+    });
+}
+
 module.exports.getCurrentAcheivement = (streamedMilliseconds) => {
             
   if (streamedMilliseconds < 3600000 ) {
-    return '1 Hour Streamed'
+    return 'Streamed 1 Hour'
   }
 
   if (streamedMilliseconds > 3600000 && streamedMilliseconds < 3600000 * 5) {
-    return '5 Hours Streamed'
+    return 'Streamed 5 Hours'
   }  
   
   if (streamedMilliseconds > 3600000 * 5 && streamedMilliseconds < 3600000 * 10) {
-    return '10 Hours Streamed'
+    return 'Streamed 10 Hours'
   }       
 
   if (streamedMilliseconds > 3600000 * 10 && streamedMilliseconds < 3600000 * 15) {
-    return '15 Hours Streamed'
+    return 'Streamed 15 Hours'
   }        
 
   if (streamedMilliseconds > 3600000 * 15 && streamedMilliseconds < 3600000 * 25) {
-    return '25 Hours Streamed'
+    return 'Streamed 25 Hours'
   }     
 
 }

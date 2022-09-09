@@ -20,7 +20,8 @@ const {
   createIntegration,
   getCollectibles,
   getCollectible,
-  createCollectible,
+  createUserArtistCollectible,
+  createUserTrackCollectible,
   getArtists,
   getArtist,
   getArtistCollector,
@@ -152,7 +153,7 @@ app.get("/account/collectible", verifyAuth, async (req, res) => {
 });
 
 
-app.post("/account/collectible/:pk", verifyAuth, async (req, res) => {
+app.post("/account/collectible/artist/:pk", verifyAuth, async (req, res) => {
   const pk = req.params.pk;
   const artist = req.body.artist;
   const achievement = req.body.achievement;
@@ -160,9 +161,22 @@ app.post("/account/collectible/:pk", verifyAuth, async (req, res) => {
   const user = req.body.user;
   const statusName = req.body.status;
   const transaction = req.body.transaction;
-  const collectible = await createCollectible(pk, artist, achievement, streamedMilliseconds, user, statusName, transaction)
+  const collectible = await createUserArtistCollectible(pk, artist, achievement, streamedMilliseconds, user, statusName, transaction)
   res.json(collectible)
 });
+
+app.post("/account/collectible/track/:pk", verifyAuth, async (req, res) => {
+  const pk = req.params.pk;
+  const artist = req.body.artist;
+  const track = req.body.track;
+  const achievement = req.body.achievement;
+  const user = req.body.user;
+  const statusName = req.body.status;
+  const transaction = req.body.transaction;
+  const collectible = await createUserTrackCollectible(pk, artist, track, achievement, user, statusName, transaction)
+  res.json(collectible)
+});
+
 
 /**
  * Artists endpoints
@@ -314,16 +328,15 @@ app.get("/account/nft", verifyAuth, async (req, res) => {
  app.post("/nft/mint/spotify/track", verifyAuth, async (req, res) => {
   const walletAddress = req.body.walletAddress;
   // const tokenId = req.body.tokenId; // TODO: might need nft tokenId at some point 
-  const item = req.body.track;
+  const track = req.body.track;
 
-  // Custom metadata of the NFT, note that you can fully customize this metadata with other properties.
-  let artists = item.track.artists.map((artist) => artist.name).join(", ");
+  let artists = track.artists.map((artist) => artist.name).join(", ");
   artists = artists.replace(/,\s*$/, "");
   const nftMetadata = {
-    name: item.track.name,
-    description: `${item.track.name} from ${artists} played at ${item.played_at}`,
-    image: item.track.album.images[0].url, // TODO: this will be the album art of the track for now. We'd want to switch this to be a Radia NFT I'd imagine.
-    track: item
+    name: `Streamed ${track.name} from ${artists} in first 24 hours of release`,
+    description: `${track.name} from ${artists} played at ${track.played_at}`,
+    image: track.album.images[0].url, // TODO: this will be the album art of the track for now. We'd want to switch this to be a Radia NFT I'd imagine.
+    track
   };
 
   console.log("This is our nft metadata: ", nftMetadata);
@@ -339,9 +352,8 @@ app.post("/nft/mint/spotify/artist", verifyAuth, async (req, res) => {
   const artist = req.body.artist;
   const streamedMilliseconds = req.body.streamedMilliseconds;
 
-  // Custom metadata of the NFT, note that you can fully customize this metadata with other properties.
   const nftMetadata = {
-    name: `${artist.name} - ${getCurrentAcheivement(streamedMilliseconds)}`,
+    name: `${getCurrentAcheivement(streamedMilliseconds)} of ${artist.name}`,
     description: `${getCurrentAcheivement(streamedMilliseconds)} of ${artist.name} on Spotify.`,
     image: artist.images[0].url, // TODO: this will be the album art of the track for now. We'd want to switch this to be a Radia NFT I'd imagine.
     artist: artist
