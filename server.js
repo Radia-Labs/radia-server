@@ -3,7 +3,9 @@ const cors = require('cors')
 const bodyParser = require("body-parser")
 const Moralis = require("moralis/node.js")
 const express = require("express")
-
+const multer  = require('multer')
+const multerS3 = require('multer-s3');
+const AWS =  require('aws-sdk');
 const dotenv = require("dotenv")
 const {verifyAuth} = require("./middleware")
 
@@ -39,16 +41,33 @@ const {
   createCollection,
   getSpotifySimilarArtists,
   getSpotifyNewMusic,
-  getSpotifyArtist
+  getSpotifyArtist,
+  sendEmailTemplate,
+  getRandomCollectibleImageFromS3
 } = require("./utils.js")
 
 const app = express();
 const port = 8000;
+dotenv.config();
+
+const S3 = new AWS.S3({ 
+  accessKeyId: process.env.AWS_ACCESS_ID, 
+  secretAccessKey: process.env.AWS_ACCESS_SECRET
+});
 
 app.use(cors())
 app.use(bodyParser.json());
 
-dotenv.config();
+const upload = multer({
+  storage: multerS3({
+      s3: S3,
+      bucket: process.env.AWS_S3_USER_BUCKET_NAME,
+      key: function (req, file, cb) {
+          console.log(req.params.pk);
+          cb(null, `images/${req.params.pk}/${file.originalname}`); //use Date.now() for unique file keys
+      }
+  })
+});
 
 try {
   Moralis.start({
@@ -82,6 +101,13 @@ app.put("/account/user", verifyAuth, async (req, res) => {
   const data = req.body;
   const user = await updateUser(data.verifierId, data)
   res.json(user)
+});
+
+app.post("/account/user/:pk/image/upload", upload.single('file'), async (req, res) => {
+    res.send({
+      message: "Uploaded!",
+      url: `${process.env.RADIA_USER_MEDIA_CDN}/${req.file.key}` //{url: req.file.location, name: req.file.key, type: req.file.mimetype, size: req.file.size}
+    });
 });
 
 /**
@@ -218,7 +244,7 @@ app.get("/artist/:id", verifyAuth, async (req, res) => {
   res.json(artist)
 });
 
-app.get("/artist/collectibles/sk", verifyAuth, async (req, res) => {
+app.get("/collectibles/sk", verifyAuth, async (req, res) => {
   const sk = req.query.sk;
   const collectible = await getCollectiblesBySk(sk)
   res.json(collectible)
@@ -327,7 +353,6 @@ app.get("/account/nft", verifyAuth, async (req, res) => {
  */
  app.post("/nft/mint/spotify/track", verifyAuth, async (req, res) => {
   const walletAddress = req.body.walletAddress;
-  // const tokenId = req.body.tokenId; // TODO: might need nft tokenId at some point 
   const track = req.body.track;
 
   let artists = track.artists.map((artist) => artist.name).join(", ");
@@ -335,7 +360,7 @@ app.get("/account/nft", verifyAuth, async (req, res) => {
   const nftMetadata = {
     name: `Streamed ${track.name} from ${artists} in first 24 hours of release`,
     description: `${track.name} from ${artists} played at ${track.played_at}`,
-    image: track.album.images[0].url, // TODO: this will be the album art of the track for now. We'd want to switch this to be a Radia NFT I'd imagine.
+    image: getRandomCollectibleImageFromS3(), //TODO: this is random. At some point we should track what collectibles the user alreadt owns and not give them the same one.
     track
   };
 
@@ -348,20 +373,29 @@ app.get("/account/nft", verifyAuth, async (req, res) => {
 app.post("/nft/mint/spotify/artist", verifyAuth, async (req, res) => {
   console.log("this is what the body looks like: ", req.body)
   const walletAddress = req.body.walletAddress;
-  // const tokenId = req.body.tokenId; // TODO: might need tokenId at some point 
   const artist = req.body.artist;
   const streamedMilliseconds = req.body.streamedMilliseconds;
 
   const nftMetadata = {
     name: `${getCurrentAcheivement(streamedMilliseconds)} of ${artist.name}`,
     description: `${getCurrentAcheivement(streamedMilliseconds)} of ${artist.name} on Spotify.`,
-    image: artist.images[0].url, // TODO: this will be the album art of the track for now. We'd want to switch this to be a Radia NFT I'd imagine.
-    artist: artist
+    image: getRandomCollectibleImageFromS3(), //TODO: this is random. At some point we should track what collectibles the user alreadt owns and not give them the same one.
+    artist
   };
 
   console.log("This is our nft metadata: ", nftMetadata);
 
   const result = await mintNFTToAddress(walletAddress, nftMetadata);
+  res.json(result);
+});
+
+/**
+* Private Route: Requires x-api-key header
+*/
+app.post("/email/send", async (req, res) => {
+  const templateName = req.body.templateName;
+  const emailAddress = req.body.emailAddress;
+  const result = await sendEmailTemplate(emailAddress, templateName);
   res.json(result);
 });
 

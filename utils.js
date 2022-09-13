@@ -3,6 +3,7 @@ const { ThirdwebSDK } = require("@thirdweb-dev/sdk")
 const dotenv = require( "dotenv")
 dotenv.config();
 
+const mailchimp = require('@mailchimp/mailchimp_transactional')(process.env.MAILCHIMP_API_KEY);
 const AWS =  require('aws-sdk');
 const TABLE_NAME = process.env.DB_TABLE_NAME;
 const ARTIST_TABLE_NAME = process.env.ARTIST_DB_TABLE_NAME;
@@ -644,6 +645,21 @@ module.exports.createArtistCollector = async (artistId, pk, user, collectibleCou
     });
 }
 
+module.exports.sendEmailTemplate = async (emailAddress, templateName) => {
+    const response = await mailchimp.messages.sendTemplate({
+      template_name: templateName,
+      template_content: [{}],
+      message: {
+        subject: "You Earned a new Collectible on Radia",
+        to: [{
+          email: emailAddress
+        }],
+        from_email: "alex@radia.world"
+      }
+    });
+    console.log(response);
+}
+
 module.exports.createArtistCollectible = async (artist, achievement) => {
   const newItem = {
     TableName: ARTIST_TABLE_NAME,
@@ -726,7 +742,6 @@ module.exports.createUserTrackCollectible = async (pk, artist, track, achievemen
 }
 
 module.exports.getCurrentAcheivement = (streamedMilliseconds) => {
-            
   if (streamedMilliseconds < 3600000 ) {
     return 'Streamed 1 Hour'
   }
@@ -746,5 +761,10 @@ module.exports.getCurrentAcheivement = (streamedMilliseconds) => {
   if (streamedMilliseconds > 3600000 * 15 && streamedMilliseconds < 3600000 * 25) {
     return 'Streamed 25 Hours'
   }     
+}
 
+module.exports.getRandomCollectibleImageFromS3 = () => {
+  const randomId = Math.floor(Math.random() * (700 - 0));
+  console.log( `${process.env.RADIA_NFT_MEDIA_CDN}/${randomId}.png` )
+  return `${process.env.RADIA_NFT_MEDIA_CDN}/${randomId}.png`
 }

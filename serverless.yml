@@ -1,9 +1,14 @@
 service: radia-server
+plugins:
+  - serverless-add-api-key
 provider:
   name: aws
   runtime: nodejs14.x
   stage: prod
   region: us-east-1
+custom: 
+  apiKeys:
+    - name: radia-server-api-key
 functions:
   app:
     handler: server.handler 
@@ -17,3 +22,9 @@ functions:
           path: /{proxy+}
           method: ANY
           cors: true
+      - http:
+          path: /email/send
+          method: POST
+          cors: true
+          private: true          
+  
