@@ -1,7 +1,6 @@
 const serverless = require('serverless-http')
 const cors = require('cors')
 const bodyParser = require("body-parser")
-const Moralis = require("moralis/node.js")
 const express = require("express")
 const multer  = require('multer')
 const multerS3 = require('multer-s3');
@@ -43,43 +42,37 @@ const {
   getSpotifyNewMusic,
   getSpotifyArtist,
   sendEmailTemplate,
-  getRandomCollectibleImageFromS3
+  getRandomCollectibleImageFromS3,
+  sortNftsFromSimpleHash
 } = require("./utils.js")
 
+// Set up express
 const app = express();
 const port = 8000;
+
+// Init dotenv
 dotenv.config();
 
+// Set up S3
 const S3 = new AWS.S3({ 
   accessKeyId: process.env.AWS_ACCESS_ID, 
   secretAccessKey: process.env.AWS_ACCESS_SECRET
 });
 
+// Setup CORS and body parser
 app.use(cors())
 app.use(bodyParser.json());
 
+// Profile Image Upload to S3
 const upload = multer({
   storage: multerS3({
       s3: S3,
       bucket: process.env.AWS_S3_USER_BUCKET_NAME,
       key: function (req, file, cb) {
-          console.log(req.params.pk);
-          cb(null, `images/${req.params.pk}/${file.originalname}`); //use Date.now() for unique file keys
+          cb(null, `images/${req.params.pk}/${file.originalname}`); 
       }
   })
 });
-
-try {
-  Moralis.start({
-    serverUrl: process.env.MORALIS_URL,
-    appId: process.env.MORALIS_APP_ID,
-    masterKey: process.env.MORALIS_MASTER_KEY,
-    moralisSecret: process.env.MORALIS_SECRET,
-  });
-  // const connection = new solanaWeb3.Connection(process.env.SOLANA_RPC_URL, 'confirmed');
-} catch (error) {
-  console.log("Error strting Moralis. Confirm dApp is awake.")
-}
 
 /**
  * User endpoints
@@ -123,15 +116,6 @@ app.get("/integration/spotify/auth", verifyAuth, async (req, res) => {
     .catch((err) => console.log("Error getting spotify Refresh Token: ", err));
 });
 
-// TODO: Not sure we need these on the server, these are used in scheduled lambda
-
-// app.get("/integration/spotify/refresh-token", verifyAuth, async (req, res) => {
-//   const refreshToken = req.query.refreshToken;
-//   refreshSpotifyAccessToken(refreshToken)
-//     .then((token) => res.json(token))
-//     .catch((err) => console.log("Error refreshing token:", err));
-// });
-
 app.get("/integration/spotify/artist", verifyAuth, async (req, res) => {
   const refreshToken = req.query.refreshToken;
   const freshToken = await refreshSpotifyAccessToken(refreshToken);  
@@ -140,8 +124,15 @@ app.get("/integration/spotify/artist", verifyAuth, async (req, res) => {
     .catch((err) => console.log("Error getting spotify artist:", err));
 });
 
+app.get("/integration/spotify/me", verifyAuth, async (req, res) => {
+  const refreshToken = req.query.refreshToken;
+  const freshToken = await refreshSpotifyAccessToken(refreshToken);
+  const spotify = await getSpotifyProfile(freshToken)
+  res.json(spotify)
+});
+
 /**
- * Integration endpoints
+ * User Integration endpoints
  * These endpoints are used to create & read 3rd party integrations for a user
  */
  app.get("/account/integration", verifyAuth, async (req, res) => {
@@ -178,7 +169,6 @@ app.get("/account/collectible", verifyAuth, async (req, res) => {
   res.json(collectible)
 });
 
-
 app.post("/account/collectible/artist/:pk", verifyAuth, async (req, res) => {
   const pk = req.params.pk;
   const artist = req.body.artist;
@@ -202,7 +192,6 @@ app.post("/account/collectible/track/:pk", verifyAuth, async (req, res) => {
   const collectible = await createUserTrackCollectible(pk, artist, track, achievement, user, statusName, transaction)
   res.json(collectible)
 });
-
 
 /**
  * Artists endpoints
@@ -282,18 +271,7 @@ app.post("/artist/collector/:id/:pk", verifyAuth, async (req, res) => {
   const user = req.body.user;
   const collectibleCount = req.body.collectibleCount;
   const collector = await createArtistCollector(id, pk, user, collectibleCount)
-  console.log("created collector", collector)
   res.json(collector)
-});
-
-/**
- * Spotify User endpoints
- */
-app.get("/account/spotify/me", verifyAuth, async (req, res) => {
-  const refreshToken = req.query.refreshToken;
-  const freshToken = await refreshSpotifyAccessToken(refreshToken);
-  const spotify = await getSpotifyProfile(freshToken)
-  res.json(spotify)
 });
 
 /**
@@ -317,7 +295,6 @@ app.post("/account/collections/:pk", verifyAuth, async (req, res) => {
 app.delete("/account/collections/:pk", verifyAuth, async (req, res) => {
   const pk = req.params.pk;
   const sk = req.body.sk;
-  console.log(pk, sk)
   const collection = await deleteCollection(pk, sk)
   res.json(collection)
 });
@@ -335,7 +312,7 @@ app.get("/account/nfts", verifyAuth, async (req, res) => {
     req.query.addresses,
     req.query.nextUrl
   );
-  res.json(nfts);
+  res.json(sortNftsFromSimpleHash(nfts));
 });
 
 app.get("/account/nft", verifyAuth, async (req, res) => {

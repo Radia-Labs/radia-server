@@ -20,35 +20,6 @@ const documentClient = new AWS.DynamoDB.DocumentClient({
 });
 
 /**
- * Binance API functions. Used to get prices of various cryptocurrencies.
- */
- module.exports.getSolUSDPrice = function() {
-  return new Promise((resolve, reject) => {
-    const url = "https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT";
-    request(url, function (error, response, body) {
-      if (error) {
-        reject(error);
-      }
-      const data = JSON.parse(body);
-      resolve(data.price);
-    });
-  });
-};
-
-module.exports.getPolygonUSDPrice = function() {
-  return new Promise((resolve, reject) => {
-    const url = "https://api.binance.com/api/v3/ticker/price?symbol=MATICUSDT";
-    request(url, function (error, response, body) {
-      if (error) {
-        reject(error);
-      }
-      const data = JSON.parse(body);
-      resolve(data.price);
-    });
-  });
-};
-
-/**
  * SimpleHash functions. Used to query varios cahins and addresses.
  */
  module.exports.getNFTsByOwner= function(chains, addresses, nextUrl) {
@@ -75,7 +46,6 @@ module.exports.getPolygonUSDPrice = function() {
 };
 
 module.exports.getNFTByTokenId= function(chain, contractAddress, tokenId) {
-  console.log(chain, contractAddress, tokenId)
   let url = `https://api.simplehash.com/api/v0/nfts/${chain}/${contractAddress}/${tokenId}`
   return new Promise((resolve, reject) => {
     const options = {
@@ -98,7 +68,6 @@ module.exports.getNFTByTokenId= function(chain, contractAddress, tokenId) {
 /**
  * Collections functions.
  */
-
  module.exports.getCollections = (pk, limit, lastEvaluatedKey) => {
   const queryParams = {
       TableName: TABLE_NAME,
@@ -394,6 +363,7 @@ module.exports.getSpotifyProfile = function(accessToken) {
   const tokenId = tx.id; // the id of the NFT minted
   const nft = await tx.data(); // (optional) fetch details of minted NFT  
 
+  console.log("Minting NFT to address: ", walletAddress)
   console.log(receipt, tokenId, nft)
   return {receipt, tokenId, nft}
 }
@@ -614,7 +584,6 @@ module.exports.getArtistCollector = async (pk, artistId) => {
           ':sk': `Collector|spotify|${pk}`,
       },
   };
-  console.log(queryParams)
   const collector= await documentClient.query(queryParams).promise();
   return collector;
 }
@@ -654,10 +623,10 @@ module.exports.sendEmailTemplate = async (emailAddress, templateName) => {
         to: [{
           email: emailAddress
         }],
-        from_email: "alex@radia.world"
+        from_email: "jessica@radia.world"
       }
     });
-    console.log(response);
+    return response;
 }
 
 module.exports.createArtistCollectible = async (artist, achievement) => {
@@ -764,7 +733,12 @@ module.exports.getCurrentAcheivement = (streamedMilliseconds) => {
 }
 
 module.exports.getRandomCollectibleImageFromS3 = () => {
-  const randomId = Math.floor(Math.random() * (700 - 0));
-  console.log( `${process.env.RADIA_NFT_MEDIA_CDN}/${randomId}.png` )
+  const randomId = Math.floor(Math.random() * (759 - 0));
   return `${process.env.RADIA_NFT_MEDIA_CDN}/${randomId}.png`
+}
+
+module.exports.sortNftsFromSimpleHash = (data) => {
+  // TODO: shouldn't have to do this. bug simple hash to add sort params
+  const sortedNfts = data.nfts.sort((a, b) => Date.parse(b.owners[b.owners.length - 1].last_acquired_date) -  Date.parse(a.owners[a.owners.length -1].last_acquired_date) );
+  return {...data, nfts: sortedNfts}
 }
