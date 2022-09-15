@@ -25,7 +25,8 @@
   },
   "devDependencies": {
     "nodemon": "^2.0.18",
-    "serverless-add-api-key": "^4.2.1"
+    "serverless-add-api-key": "^4.2.1",
+    "serverless-apigw-binary": "^0.4.4"
   },
   "scripts": {
     "test": "nodemon server.js",

@@ -1,6 +1,7 @@
 service: radia-server
 plugins:
   - serverless-add-api-key
+  - serverless-apigw-binary
 provider:
   name: aws
   runtime: nodejs14.x
@@ -9,6 +10,9 @@ provider:
 custom: 
   apiKeys:
     - name: radia-server-api-key
+  apigwBinary:
+    types:
+      - '*/*'
 functions:
   app:
     handler: server.handler 

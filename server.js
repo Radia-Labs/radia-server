@@ -7,6 +7,7 @@ const multerS3 = require('multer-s3');
 const AWS =  require('aws-sdk');
 const dotenv = require("dotenv")
 const {verifyAuth} = require("./middleware")
+var path = require('path')
 
 const {
   getNFTsByOwner,
@@ -69,7 +70,7 @@ const upload = multer({
       s3: S3,
       bucket: process.env.AWS_S3_USER_BUCKET_NAME,
       key: function (req, file, cb) {
-          cb(null, `images/${req.params.pk}/${file.originalname}`); 
+          cb(null, `images/${req.params.pk}/${new Date().getTime()}${path.extname(file.originalname)}`); 
       }
   })
 });
@@ -376,8 +377,10 @@ app.post("/email/send", async (req, res) => {
   res.json(result);
 });
 
-app.listen(port, () => {
-  console.log(`Example app listening on port ${port}`);
-});
+// app.listen(port, () => {
+//   console.log(`Example app listening on port ${port}`);
+// });
 
-module.exports.handler = serverless(app)
+module.exports.handler = serverless(app, {
+  binary: ['image/png', 'image/gif', 'image/jpeg', 'image/jpg', 'image/svg+xml']
+})
