@@ -6,6 +6,7 @@ const multer  = require('multer')
 const multerS3 = require('multer-s3');
 const AWS =  require('aws-sdk');
 const dotenv = require("dotenv")
+const Mixpanel = require('mixpanel');
 const {verifyAuth} = require("./middleware")
 var path = require('path')
 
@@ -54,6 +55,9 @@ const port = 8000;
 // Init dotenv
 dotenv.config();
 
+// set up mixpanel
+const mixpanel = Mixpanel.init(process.env.MIXPANEL_TOKEN)
+
 // Set up S3
 const S3 = new AWS.S3({ 
   accessKeyId: process.env.AWS_ACCESS_ID, 
@@ -88,12 +92,24 @@ const upload = multer({
 app.post("/account/user", verifyAuth, async (req, res) => {
   const data = req.body;
   const user = await createUser(data)
+  mixpanel.people.set(data.verifierId, {
+    walletAddresses: data.addresses,
+    $name: data.name,
+    $created: (new Date()).toISOString(),
+    $email: data.email     
+  }, {
+    $ip: req.socket.remoteAddress
+  });
   res.json(user)
 });
 
 app.put("/account/user", verifyAuth, async (req, res) => {
   const data = req.body;
   const user = await updateUser(data.verifierId, data)
+  mixpanel.track('Sign In', {
+    ip: req.socket.remoteAddress,
+    distinct_id: data.verifierId,
+  });
   res.json(user)
 });
 
@@ -148,6 +164,7 @@ app.post("/account/integration/:type/:pk", verifyAuth, async (req, res) => {
   const pk = req.params.pk;
   const data = req.body;
   const user = await createIntegration(type, pk, data)
+  mixpanel.people.set(pk, 'Integration', {spotify: true});
   res.json(user)
 });
 
@@ -290,6 +307,10 @@ app.post("/account/collections/:pk", verifyAuth, async (req, res) => {
   const pk = req.params.pk;
   const data = req.body;
   const collection = await createCollection(pk, data)
+  mixpanel.track('Create Collection', {
+    ip: req.socket.remoteAddress,
+    distinct_id: pk,
+  });   
   res.json(collection)
 });
 
@@ -330,6 +351,7 @@ app.get("/account/nft", verifyAuth, async (req, res) => {
  * These endpoints are used to integrate with the ThirdWeb SDK
  */
  app.post("/nft/mint/spotify/track", verifyAuth, async (req, res) => {
+  const pk = req.body.pk;
   const walletAddress = req.body.walletAddress;
   const track = req.body.track;
 
@@ -345,11 +367,15 @@ app.get("/account/nft", verifyAuth, async (req, res) => {
   console.log("This is our nft metadata: ", nftMetadata);
 
   const result = await mintNFTToAddress(walletAddress, nftMetadata);
+  mixpanel.track('Claim Collectible (Track)', {
+    ip: req.socket.remoteAddress,
+    distinct_id: pk,
+  });  
   res.json(result);
 });
 
 app.post("/nft/mint/spotify/artist", verifyAuth, async (req, res) => {
-  console.log("this is what the body looks like: ", req.body)
+  const pk = req.body.pk;
   const walletAddress = req.body.walletAddress;
   const artist = req.body.artist;
   const streamedMilliseconds = req.body.streamedMilliseconds;
@@ -364,6 +390,10 @@ app.post("/nft/mint/spotify/artist", verifyAuth, async (req, res) => {
   console.log("This is our nft metadata: ", nftMetadata);
 
   const result = await mintNFTToAddress(walletAddress, nftMetadata);
+  mixpanel.track('Claim Collectible (Artist)', {
+    ip: req.socket.remoteAddress,
+    distinct_id: pk,
+  });  
   res.json(result);
 });
 
@@ -373,7 +403,9 @@ app.post("/nft/mint/spotify/artist", verifyAuth, async (req, res) => {
 app.post("/email/send", async (req, res) => {
   const templateName = req.body.templateName;
   const emailAddress = req.body.emailAddress;
-  const result = await sendEmailTemplate(emailAddress, templateName);
+  const templateContent = req.body.templateContent;
+  const subject = req.body.subject;
+  const result = await sendEmailTemplate(emailAddress, templateName, templateContent, subject);
   res.json(result);
 });
 

@@ -614,19 +614,20 @@ module.exports.createArtistCollector = async (artistId, pk, user, collectibleCou
     });
 }
 
-module.exports.sendEmailTemplate = async (emailAddress, templateName) => {
-    const response = await mailchimp.messages.sendTemplate({
-      template_name: templateName,
-      template_content: [{}],
-      message: {
-        subject: "You Earned a new Collectible on Radia",
-        to: [{
-          email: emailAddress
-        }],
-        from_email: "jessica@radia.world"
-      }
-    });
-    return response;
+module.exports.sendEmailTemplate = async (emailAddress, templateName, templateContent, subject) => {
+  const emailData = {
+    template_name: templateName,
+    template_content: templateContent,
+    message: {
+      subject: subject,
+      to: [{
+        email: emailAddress
+      }],
+      from_email: "jessica@radia.world"
+    }
+  }
+  const response = await mailchimp.messages.sendTemplate(emailData);
+  return response;
 }
 
 module.exports.createArtistCollectible = async (artist, achievement) => {
